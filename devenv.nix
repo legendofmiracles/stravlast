@@ -10,9 +10,10 @@
     venv = {
       enable = true;
       requirements = ''
-        pylast
         stravalib
       '';
     };
   };
+
+  pre-commit.hooks.black.enable = true;
 }
