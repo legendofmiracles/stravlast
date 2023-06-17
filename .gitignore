@@ -1,0 +1,8 @@
+refresh_token
+
+# Devenv
+.devenv*
+.envrc
+devenv.local.nix
+.direnv/
+
