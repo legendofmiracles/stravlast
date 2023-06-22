@@ -1,37 +1,28 @@
-from stravalib import Client
-import os
 from datetime import datetime
 import requests
+from pint import UnitRegistry
+import strava
 
-client = Client()
+ureg = UnitRegistry()
 
-# ONLY DO THIS THE FIRST TIME
-# url = client.authorization_url(client_id=os.environ.get("client_id"),
-#                               redirect_uri='http://127.0.0.1:5000/authorization',
-#                               scope = ["activity:read_all", "activity:write"])
+token = strava.get_token()
 
-# token_response = client.exchange_code_for_token(client_id=os.environ.get("client_id"),
-#                                              client_secret=os.environ.get("client_secret"),
-#                                              code="00dc91540844d8d619708acaef42ddc2db9c58e5")
+# activity = list(client.get_activities(limit=1))[0]
+activity = requests.get(
+    "https://www.strava.com/api/v3/athlete/activities",
+    headers={"Authorization": f"Bearer {token}"},
+    params={"per_page": "1"},
+).json()[0]
 
-token_response = client.refresh_access_token(
-    client_id=os.environ.get("client_id"),
-    client_secret=os.environ.get("client_secret"),
-    refresh_token=open("refresh_token", "r"),
-)
+print(activity)
 
-client = Client(access_token=token_response["access_token"])
+laps = requests.get(
+    f'https://www.strava.com/api/v3/activities/{activity["id"]}/laps',
+    headers={"Authorization": f"Bearer {token}"},
+).json()
 
-f = open("refresh_token", "w")
-f.write(token_response["refresh_token"])
-f.close()
-
-
-activity = list(client.get_activities(limit=1))[0]
-laps = client.get_activity_laps(activity.id)
-
-end_time = (
-    datetime.timestamp(activity.start_date) + activity.elapsed_time.total_seconds()
+end_time = datetime.fromisoformat(activity["start_date"]) + int(
+    activity["elapsed_time"]
 )
 
 all_songs = requests.get(
@@ -51,26 +42,49 @@ if "@attr" in all_songs[0] and "nowplaying" in all_songs[0]["@attr"]:
 
 description = ""
 
-laps = list(laps)
 laps.reverse()
 all_songs.reverse()
 
+distances = []
+for i in laps:
+    i = i.distance.to(ureg.kilometer)
+    distances.append(float(f"{i:~P}".replace(" km", "")))
 
+distances.reverse()
+distances.append(0)
+
+total_distance = sum(distances)
 for i in laps:
     songs = all_songs.copy()
     deleted = 0
     for s in range(len(songs)):
         song_time = int(songs[0]["date"]["uts"])
         lap_time = datetime.timestamp(i.start_date)
-        # print(song_time)
-        # print(lap_time)
-        # print("\n")
         if song_time >= lap_time:
-            description = songs[0]["name"] + "\n" + description
+            description = (
+                "\U0001F3B5 "
+                + songs[0]["name"]
+                + "  -  "
+                + songs[0]["artist"]["#text"]
+                + "\n"
+                + description
+            )
             del all_songs[s - deleted]
-            deleted = deleted + 1
+            deleted = +1
 
         del songs[0]
-    description = "kilometer " + str(i.distance) + "\n" + description
+    total_distance = total_distance - distances[-1]
+    del distances[-1]
+    if deleted != 0:
+        description = (
+            f"\n{total_distance-distances[-1]}-{total_distance:.1f}. kilometer\n".replace(
+                ".0", ""
+            )
+            + description
+        )
+
+description = description.lstrip()
 
 print(description)
+
+client.update_activity(activity, description)

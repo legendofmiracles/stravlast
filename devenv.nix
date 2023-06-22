@@ -11,6 +11,7 @@
       enable = true;
       requirements = ''
         stravalib
+        ipdb
       '';
     };
   };
