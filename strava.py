@@ -30,7 +30,7 @@ def get_token(oauth_code=None):
         file = open("refresh_token.p", "rb+")
         refresh = pickle.load(file)
 
-        if refresh[1] >= time.time():
+        if time.time() >= refresh[1]:
             # need to refresh
             token_response = requests.post(
                 "https://www.strava.com/api/v3/oauth/token",
